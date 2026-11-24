@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<model version="NetLogo 7.0.3" snapToGrid="false">
+  <code>breed [citizens citizen]
+breed [police officer]
+
+globals [agent-vision]
+
+citizens-own [hardship grievance risk-aversion perceived-arrest-risk active? release-tick]
+turtles-own [moved-this-tick?]
+
+to setup
+  check-jail-term
+  clear-all
+  set agent-vision vision_in_patches
+
+  let citizen-count round (0.7 * count patches)
+  ask n-of citizen-count patches [
+    sprout-citizens 1 [
+      set hardship random-float 1
+      set risk-aversion random-float 1
+      set grievance hardship * (1 - legitimacy)
+      set active? false
+      set color blue
+    ]
+  ]
+  let police-count round (0.04 * count patches)
+  ask n-of police-count patches with [not any? turtles-here] [
+    sprout-police 1 
+  ]
+  update-all-agents
+  update-police-colors
+  reset-ticks
+end
+
+to go
+  if not any? turtles [ stop ]
+  check-jail-term
+  ask citizens with [hidden? and release-tick &lt;= ticks] [ release-citizen ]
+  ask turtles with [not hidden?] [
+    if not hidden? [
+      move-randomly
+      ifelse breed = citizens
+        [ update-citizen-state ]
+        [ arrest-active-citizen ]
+    ]
+  ]
+  tick
+end
+
+to update-citizen-state  ; citizen procedure
+  set grievance hardship * (1 - legitimacy)
+  let officers-seen count police in-radius agent-vision
+  let active-nearby 1 + count ((other citizens in-radius agent-vision) with [active?])
+  set perceived-arrest-risk 1 - exp (- risk-sensitivity * officers-seen / active-nearby)
+  set active? (grievance - risk-aversion * perceived-arrest-risk) &gt; activation-threshold
+  set color ifelse-value active? [red] [blue]
+end
+
+to move-randomly
+  let destinations (patches in-radius agent-vision) with [not any? turtles-here with [not hidden?]]
+  set moved-this-tick? any? destinations
+  if moved-this-tick? [ move-to one-of destinations ]
+end
+
+
+
+to update-all-agents
+  ask turtles [
+    set moved-this-tick? false
+  ]
+  
+end
+
+to update-police-colors
+  ask police [set color yellow]
+  
+end
+
+
+to-report percent-active
+  if not any? citizens [ report 0 ]
+  report 100 * count citizens with [active?] / count citizens
+end
+
+to arrest-active-citizen  ; officer procedure
+  let suspect one-of (citizens in-radius agent-vision) with [active? and not hidden?]
+  if suspect != nobody [
+    ask suspect [
+      set active? false
+      set color blue
+      set release-tick ticks + 1 + random maximum-jail-term
+      hide-turtle
+    ]
+  ]
+end
+
+to release-citizen  ; citizen procedure
+  if any? other turtles-here with [not hidden?] [
+    move-to one-of patches with [not any? turtles-here with [not hidden?]]
+  ]
+  show-turtle
+end
+
+to check-jail-term
+  if maximum-jail-term &lt; 1 or maximum-jail-term != floor maximum-jail-term [
+    error "Enter a positive whole number for maximum-jail-term."
+  ]
+end</code>
+  <widgets>
+    <view x="220" wrappingAllowedX="true" y="10" frameRate="30.0" minPycor="0" height="404" showTickCounter="true" patchSize="10.0" fontSize="10" wrappingAllowedY="true" width="404" tickCounterLabel="ticks" maxPycor="39" updateMode="1" maxPxcor="39" minPxcor="0"></view>
+    <button x="15" y="20" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="95" display="Setup">setup</button>
+    <button x="15" y="72" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="95" display="Go">go</button>
+    <input x="13" multiline="false" y="129" height="60" variable="vision_in_patches" type="number" width="192">7.0</input>
+    <input x="13" y="203" height="60" width="192" variable="legitimacy" type="number" multiline="false">0.82</input>
+    <input x="13" y="273" height="60" width="192" variable="activation-threshold" type="number" multiline="false">0.1</input>
+    <monitor x="220" y="430" height="61" width="150" precision="1" fontSize="11" display="% active">percent-active</monitor>
+    <input x="13" y="343" height="60" width="192" variable="risk-sensitivity" type="number" multiline="false">2.3</input>
+    <input x="13" y="413" height="60" width="192" variable="maximum-jail-term" type="number" multiline="false">30.0</input>
+    <plot x="220" y="504" width="404" height="200" display="Citizen states" xAxis="Tick" yAxis="Citizens" xMin="0.0" xMax="25.0" yMin="0.0" yMax="1120.0" autoPlotX="true" autoPlotY="false" legend="true">
+      <setup></setup>
+      <update></update>
+      <pen interval="1.0" mode="0" display="Quiet" color="-13345367" legend="true">
+        <setup></setup>
+        <update>plotxy ticks count citizens with [not active? and not hidden?]</update>
+      </pen>
+      <pen interval="1.0" mode="0" display="Active" color="-2674135" legend="true">
+        <setup></setup>
+        <update>plotxy ticks count citizens with [active?]</update>
+      </pen>
+      <pen interval="1.0" mode="0" display="Jailed" color="-7500403" legend="true">
+        <setup></setup>
+        <update>plotxy ticks count citizens with [hidden?]</update>
+      </pen>
+    </plot>
+  </widgets>
+  <info>## O_m4_b · Model I, Run 2 settings
+
+This version sets the defaults to Epstein (2002), Table 2, Model I Run 2. The world is a 40 × 40 torus. Initial citizen density is 70% and police density is 4%. Both populations move randomly within vision of 7 patch units. Legitimacy is 0.82, activation threshold is 0.10, risk sensitivity is 2.3, and the maximum jail term is 30 ticks.
+
+Keep those inputs fixed during Go. Use the **Citizen states** plot to look for outbursts and compare the active and jailed counts.
+
+## What changes from O_m3
+
+Citizens still call `update-citizen-state` after moving. They estimate perceived arrest risk from the same local ratio of police to active citizens and use the same activation rule, G − R × P &gt; T.
+
+Officers now call `arrest-active-citizen` after moving. If there are active citizens within vision, each officer selects one at random for arrest. The citizen becomes quiet and is hidden from the grid while jailed. Jailed citizens cannot move, act, or occupy a site for purposes of movement.
+
+The jail term is drawn uniformly from 1 through **maximum-jail-term**, which defaults to 30 ticks. When the term expires, the citizen returns to their previous patch if vacant or to another randomly chosen vacant patch. They keep their original hardship and risk aversion.
+
+## What to look for
+
+The **Citizen states** plot counts free quiet, active, and jailed citizens. Keep the numeric inputs fixed and compare activity with O_m3. In Model I, Epstein marks the start of an outburst when the active count rises above 50 and its end when the count falls below 50.
+
+In this course version, officers stay on their own patch during arrest and the risk estimate uses the continuous ratio. The parameter values match Run 2. The movement, arrest, and release procedures carry over from the course model.</info>
+  <turtleShapes>
+    <shape name="default" rotatable="true" editableColorIndex="0">
+      <polygon color="-1920102913" filled="true" marked="true">
+        <point x="150" y="5"></point>
+        <point x="40" y="250"></point>
+        <point x="150" y="205"></point>
+        <point x="260" y="250"></point>
+      </polygon>
+    </shape>
+    <shape name="circle" rotatable="false" editableColorIndex="0">
+      <circle x="0" y="0" marked="true" color="-1920102913" diameter="300" filled="true"></circle>
+    </shape>
+    <shape name="square" rotatable="false" editableColorIndex="0">
+      <rectangle endX="270" startY="30" marked="true" color="-1920102913" endY="270" startX="30" filled="true"></rectangle>
+    </shape>
+  </turtleShapes>
+  <linkShapes>
+    <shape name="default" curviness="0.0">
+      <lines>
+        <line x="-0.2" visible="false">
+          <dash value="0.0"></dash>
+          <dash value="1.0"></dash>
+        </line>
+        <line x="0.0" visible="true">
+          <dash value="1.0"></dash>
+          <dash value="0.0"></dash>
+        </line>
+        <line x="0.2" visible="false">
+          <dash value="0.0"></dash>
+          <dash value="1.0"></dash>
+        </line>
+      </lines>
+      <indicator>
+        <shape name="link direction" rotatable="true" editableColorIndex="0">
+          <line endX="90" startY="150" marked="true" color="-1920102913" endY="180" startX="150"></line>
+          <line endX="210" startY="150" marked="true" color="-1920102913" endY="180" startX="150"></line>
+        </shape>
+      </indicator>
+    </shape>
+  </linkShapes>
+  <previewCommands>setup repeat 75 [ go ]</previewCommands>
+</model>

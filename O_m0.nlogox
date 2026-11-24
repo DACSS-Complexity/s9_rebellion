@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<model version="NetLogo 7.0.3" snapToGrid="false">
+  <code>breed [citizens citizen]
+breed [police officer]
+
+globals [agent-vision]
+
+turtles-own [moved-this-tick?]
+
+to setup
+  clear-all
+  set agent-vision vision_in_patches
+
+  let citizen-count round (0.7 * count patches)
+  ask n-of citizen-count patches [
+    sprout-citizens 1 [ set color blue ]
+  ]
+  let police-count round (0.04 * count patches)
+  ask n-of police-count patches with [not any? turtles-here] [
+    sprout-police 1 
+  ]
+  update-all-agents
+  update-police-colors
+  update-patch-colors
+  reset-ticks
+end
+
+to go
+  if not any? turtles [ stop ]
+  ask turtles [ move-randomly ]
+  update-patch-colors
+  tick
+end
+
+to move-randomly
+  let destinations (patches in-radius agent-vision) with [not any? turtles-here]
+  set moved-this-tick? any? destinations
+  if moved-this-tick? [ move-to one-of destinations ]
+end
+
+
+
+to update-all-agents
+  ask turtles [
+    set moved-this-tick? false
+  ]
+  
+end
+
+to update-police-colors
+  ask police [set color yellow]
+  
+end
+
+to update-patch-colors
+  with-local-randomness [
+    ask patches [ set pcolor black ]
+    if show-police-vision? [
+      ask police [
+        ask patches in-radius agent-vision [ set pcolor orange - 3 ]
+      ]
+    ]
+    if show-citizen-vision? [
+      ask citizens [
+        ask patches in-radius agent-vision [
+          if pcolor = black [ set pcolor cyan - 3 ]
+          if pcolor = orange - 3 [ set pcolor violet - 3 ]
+        ]
+      ]
+    ]
+  ]
+end</code>
+  <widgets>
+    <view x="220" wrappingAllowedX="true" y="10" frameRate="30.0" minPycor="0" height="404" showTickCounter="true" patchSize="10.0" fontSize="10" wrappingAllowedY="true" width="404" tickCounterLabel="ticks" maxPycor="39" updateMode="1" maxPxcor="39" minPxcor="0"></view>
+    <button x="15" y="20" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="95" display="Setup">setup</button>
+    <button x="15" y="72" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="95" display="Go">go</button>
+    <input x="13" multiline="false" y="129" height="60" variable="vision_in_patches" type="number" width="192">2.0</input>
+    <switch x="13" y="203" height="40" on="false" variable="show-police-vision?" width="192" display="show-police-vision?"></switch>
+    <switch x="13" y="250" height="40" on="false" variable="show-citizen-vision?" width="192" display="show-citizen-vision?"></switch>
+  </widgets>
+  <info>## O_m0 · Movement and police visibility
+
+**Setup** places 1,120 citizens and 64 police officers on separate patches of a 40 × 40 grid that wraps at both edges. Enter a radius in **vision_in_patches** before Setup. The default is 2 patch units.
+
+**Go** gives each agent one turn per tick in random order. Citizens and police each choose a random vacant patch within the radius. An agent stays put if there is no vacancy in reach.
+
+Turn on **show-police-vision?** to shade patches within range of at least one officer in dark orange. Turn on **show-citizen-vision?** to shade patches within range of at least one citizen in dark cyan. When both are on, shared patches are violet. The coverage includes occupied and vacant patches and refreshes at Setup and after each tick. Citizens stay blue and officers stay yellow.</info>
+  <turtleShapes>
+    <shape name="default" rotatable="true" editableColorIndex="0">
+      <polygon color="-1920102913" filled="true" marked="true">
+        <point x="150" y="5"></point>
+        <point x="40" y="250"></point>
+        <point x="150" y="205"></point>
+        <point x="260" y="250"></point>
+      </polygon>
+    </shape>
+    <shape name="circle" rotatable="false" editableColorIndex="0">
+      <circle x="0" y="0" marked="true" color="-1920102913" diameter="300" filled="true"></circle>
+    </shape>
+    <shape name="square" rotatable="false" editableColorIndex="0">
+      <rectangle endX="270" startY="30" marked="true" color="-1920102913" endY="270" startX="30" filled="true"></rectangle>
+    </shape>
+  </turtleShapes>
+  <linkShapes>
+    <shape name="default" curviness="0.0">
+      <lines>
+        <line x="-0.2" visible="false">
+          <dash value="0.0"></dash>
+          <dash value="1.0"></dash>
+        </line>
+        <line x="0.0" visible="true">
+          <dash value="1.0"></dash>
+          <dash value="0.0"></dash>
+        </line>
+        <line x="0.2" visible="false">
+          <dash value="0.0"></dash>
+          <dash value="1.0"></dash>
+        </line>
+      </lines>
+      <indicator>
+        <shape name="link direction" rotatable="true" editableColorIndex="0">
+          <line endX="90" startY="150" marked="true" color="-1920102913" endY="180" startX="150"></line>
+          <line endX="210" startY="150" marked="true" color="-1920102913" endY="180" startX="150"></line>
+        </shape>
+      </indicator>
+    </shape>
+  </linkShapes>
+  <previewCommands>setup repeat 75 [ go ]</previewCommands>
+</model>

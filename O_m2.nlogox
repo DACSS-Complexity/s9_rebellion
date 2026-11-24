@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<model version="NetLogo 7.0.3" snapToGrid="false">
+  <code>breed [citizens citizen]
+breed [police officer]
+
+globals [agent-vision]
+
+citizens-own [hardship grievance risk-aversion perceived-arrest-risk active?]
+turtles-own [moved-this-tick?]
+
+to setup
+  clear-all
+  set agent-vision vision_in_patches
+
+  let citizen-count round (0.7 * count patches)
+  ask n-of citizen-count patches [
+    sprout-citizens 1 [
+      set hardship random-float 1
+      set risk-aversion random-float 1
+      set grievance hardship * (1 - legitimacy)
+      set active? false
+      set color blue
+    ]
+  ]
+  let police-count round (0.04 * count patches)
+  ask n-of police-count patches with [not any? turtles-here] [
+    sprout-police 1 
+  ]
+  update-all-agents
+  update-police-colors
+  reset-ticks
+end
+
+to go
+  if not any? turtles [ stop ]
+  ask turtles [
+    move-randomly
+    if breed = citizens [ update-citizen-state ]
+  ]
+  tick
+end
+
+to update-citizen-state  ; citizen procedure
+  set grievance hardship * (1 - legitimacy)
+  set perceived-arrest-risk ifelse-value (any? police in-radius agent-vision)
+    [risk-when-police-visible]
+    [0]
+  set active? (grievance - risk-aversion * perceived-arrest-risk) &gt; activation-threshold
+  set color ifelse-value active? [red] [blue]
+end
+
+to move-randomly
+  let destinations (patches in-radius agent-vision) with [not any? turtles-here]
+  set moved-this-tick? any? destinations
+  if moved-this-tick? [ move-to one-of destinations ]
+end
+
+
+
+to update-all-agents
+  ask turtles [
+    set moved-this-tick? false
+  ]
+  
+end
+
+to update-police-colors
+  ask police [set color yellow]
+  
+end
+
+
+to-report percent-active
+  if not any? citizens [ report 0 ]
+  report 100 * count citizens with [active?] / count citizens
+end</code>
+  <widgets>
+    <view x="220" wrappingAllowedX="true" y="10" frameRate="30.0" minPycor="0" height="404" showTickCounter="true" patchSize="10.0" fontSize="10" wrappingAllowedY="true" width="404" tickCounterLabel="ticks" maxPycor="39" updateMode="1" maxPxcor="39" minPxcor="0"></view>
+    <button x="15" y="20" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="95" display="Setup">setup</button>
+    <button x="15" y="72" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="95" display="Go">go</button>
+    <input x="13" multiline="false" y="129" height="60" variable="vision_in_patches" type="number" width="192">2.0</input>
+    <input x="13" y="203" height="60" width="192" variable="legitimacy" type="number" multiline="false">0.82</input>
+    <input x="13" y="273" height="60" width="192" variable="activation-threshold" type="number" multiline="false">0.1</input>
+    <monitor x="220" y="430" height="61" width="150" precision="1" fontSize="11" display="% active">percent-active</monitor>
+    <input x="13" y="343" height="60" width="192" variable="risk-when-police-visible" type="number" multiline="false">0.1</input>
+    <plot x="220" y="504" width="404" height="200" display="% active over time" xAxis="Tick" yAxis="% active" xMin="0.0" xMax="25.0" yMin="0.0" yMax="100.0" autoPlotX="true" autoPlotY="false" legend="false">
+      <setup></setup>
+      <update></update>
+      <pen interval="1.0" mode="0" display="Active" color="-2674135" legend="false">
+        <setup></setup>
+        <update>if ticks &gt; 0 [ plotxy ticks percent-active ]</update>
+      </pen>
+    </plot>
+  </widgets>
+  <info>## O_m2 · Local deterrence
+
+Enter **legitimacy**, **activation-threshold**, and **risk-when-police-visible** as values from 0 to 1. At Setup citizens draw fixed hardship and risk aversion. Each citizen stores grievance as hardship × (1 − legitimacy).
+
+Citizens start blue. Each turn a citizen moves if possible, updates grievance, and checks for officers within the same radius used for movement. Perceived arrest risk is zero when no officer is visible and equals **risk-when-police-visible** otherwise. The citizen turns red when grievance minus risk aversion × perceived arrest risk exceeds the activation threshold. Police continue to move to vacant patches.
+
+Keep inputs fixed during Go. The **% active over time** plot starts at tick 1. Moving officers and citizens can change perceived risk and activation even while grievance stays fixed.
+
+## Citizen decision rule
+
+After the movement step, Go calls `update-citizen-state` for each citizen. In O_m2, the activation line is:
+
+```netlogo
+set active? (grievance - risk-aversion * perceived-arrest-risk) &gt; activation-threshold
+```
+
+O_m1 uses the same procedure name and compares grievance directly with the threshold. In O_m2, when no officer is in view, perceived arrest risk is zero and the rules give the same decision.</info>
+  <turtleShapes>
+    <shape name="default" rotatable="true" editableColorIndex="0">
+      <polygon color="-1920102913" filled="true" marked="true">
+        <point x="150" y="5"></point>
+        <point x="40" y="250"></point>
+        <point x="150" y="205"></point>
+        <point x="260" y="250"></point>
+      </polygon>
+    </shape>
+    <shape name="circle" rotatable="false" editableColorIndex="0">
+      <circle x="0" y="0" marked="true" color="-1920102913" diameter="300" filled="true"></circle>
+    </shape>
+    <shape name="square" rotatable="false" editableColorIndex="0">
+      <rectangle endX="270" startY="30" marked="true" color="-1920102913" endY="270" startX="30" filled="true"></rectangle>
+    </shape>
+  </turtleShapes>
+  <linkShapes>
+    <shape name="default" curviness="0.0">
+      <lines>
+        <line x="-0.2" visible="false">
+          <dash value="0.0"></dash>
+          <dash value="1.0"></dash>
+        </line>
+        <line x="0.0" visible="true">
+          <dash value="1.0"></dash>
+          <dash value="0.0"></dash>
+        </line>
+        <line x="0.2" visible="false">
+          <dash value="0.0"></dash>
+          <dash value="1.0"></dash>
+        </line>
+      </lines>
+      <indicator>
+        <shape name="link direction" rotatable="true" editableColorIndex="0">
+          <line endX="90" startY="150" marked="true" color="-1920102913" endY="180" startX="150"></line>
+          <line endX="210" startY="150" marked="true" color="-1920102913" endY="180" startX="150"></line>
+        </shape>
+      </indicator>
+    </shape>
+  </linkShapes>
+  <previewCommands>setup repeat 75 [ go ]</previewCommands>
+</model>
