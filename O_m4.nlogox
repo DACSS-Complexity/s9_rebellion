@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <model version="NetLogo 7.0.3" snapToGrid="false">
-  <code>breed [citizens citizen]
+  <code><![CDATA[breed [citizens citizen]
 breed [police officer]
 
 globals [agent-vision]
@@ -35,7 +35,7 @@ end
 to go
   if not any? turtles [ stop ]
   check-jail-term
-  ask citizens with [hidden? and release-tick &lt;= ticks] [ release-citizen ]
+  ask citizens with [hidden? and release-tick <= ticks] [ release-citizen ]
   ask turtles with [not hidden?] [
     if not hidden? [
       move-randomly
@@ -51,8 +51,8 @@ to update-citizen-state  ; citizen procedure
   set grievance hardship * (1 - legitimacy)
   let officers-seen count police in-radius agent-vision
   let active-nearby 1 + count ((other citizens in-radius agent-vision) with [active?])
-  set perceived-arrest-risk 1 - exp (- risk-sensitivity * officers-seen / active-nearby)
-  set active? (grievance - risk-aversion * perceived-arrest-risk) &gt; activation-threshold
+  set perceived-arrest-risk 1 - exp (- risk-sensitivity * floor (officers-seen / active-nearby))
+  set active? (grievance - risk-aversion * perceived-arrest-risk) > activation-threshold
   set color ifelse-value active? [red] [blue]
 end
 
@@ -102,21 +102,21 @@ to release-citizen  ; citizen procedure
 end
 
 to check-jail-term
-  if maximum-jail-term &lt; 1 or maximum-jail-term != floor maximum-jail-term [
+  if maximum-jail-term < 1 or maximum-jail-term != floor maximum-jail-term [
     error "Enter a positive whole number for maximum-jail-term."
   ]
-end</code>
+end]]></code>
   <widgets>
     <view x="220" wrappingAllowedX="true" y="10" frameRate="30.0" minPycor="0" height="404" showTickCounter="true" patchSize="10.0" fontSize="10" wrappingAllowedY="true" width="404" tickCounterLabel="ticks" maxPycor="39" updateMode="1" maxPxcor="39" minPxcor="0"></view>
     <button x="15" y="20" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="95" display="Setup">setup</button>
     <button x="15" y="72" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="95" display="Go">go</button>
     <input x="13" multiline="false" y="129" height="60" variable="vision_in_patches" type="number" width="192">2.0</input>
-    <input x="13" y="203" height="60" width="192" variable="legitimacy" type="number" multiline="false">0.82</input>
-    <input x="13" y="273" height="60" width="192" variable="activation-threshold" type="number" multiline="false">0.1</input>
-    <monitor x="220" y="430" height="61" width="150" precision="1" fontSize="11" display="% active">percent-active</monitor>
-    <input x="13" y="343" height="60" width="192" variable="risk-sensitivity" type="number" multiline="false">2.3</input>
-    <input x="13" y="413" height="60" width="192" variable="maximum-jail-term" type="number" multiline="false">30.0</input>
-    <plot x="220" y="504" width="404" height="200" display="Citizen states" xAxis="Tick" yAxis="Citizens" xMin="0.0" xMax="25.0" yMin="0.0" yMax="1120.0" autoPlotX="true" autoPlotY="false" legend="true">
+    <input x="13" multiline="false" y="203" height="60" variable="legitimacy" type="number" width="192">0.82</input>
+    <input x="13" multiline="false" y="273" height="60" variable="activation-threshold" type="number" width="192">0.1</input>
+    <monitor x="220" precision="1" y="430" height="61" fontSize="11" width="150" display="% active">percent-active</monitor>
+    <input x="13" multiline="false" y="343" height="60" variable="risk-sensitivity" type="number" width="192">2.3</input>
+    <input x="13" multiline="false" y="413" height="60" variable="maximum-jail-term" type="number" width="192">30.0</input>
+    <plot x="220" autoPlotX="true" yMax="1120.0" autoPlotY="false" yAxis="Citizens" y="504" xMin="0.0" height="200" legend="true" xMax="25.0" yMin="0.0" width="404" xAxis="Tick" display="Citizen states">
       <setup></setup>
       <update></update>
       <pen interval="1.0" mode="0" display="Quiet" color="-13345367" legend="true">
@@ -133,21 +133,25 @@ end</code>
       </pen>
     </plot>
   </widgets>
-  <info>## O_m4 · Rebellion, arrest, and release
+  <info><![CDATA[## O_m4 · Rebellion, arrest, and release
 
 ## What changes from O_m3
 
-Citizens still call `update-citizen-state` after moving. They estimate perceived arrest risk from the same local ratio of police to active citizens and use the same activation rule, G − R × P &gt; T.
+At the start of each tick, citizens due for release return to the grid. Then all officers and free citizens take turns in random order. Each tries to move, then performs the action for their role. They still act if no vacant patch is within reach.
 
-Officers now call `arrest-active-citizen` after moving. If there are active citizens within vision, each officer selects one at random for arrest. The citizen becomes quiet and is hidden from the grid while jailed. Jailed citizens cannot move, act, or occupy a site for purposes of movement.
+Citizens call `update-citizen-state` after trying to move. They estimate arrest risk using the rounded-down local ratio of police to active citizens. A citizen becomes active when grievance minus net risk exceeds the activation threshold (`G - R * P > T`).
 
-The jail term is drawn uniformly from 1 through **maximum-jail-term**, which defaults to 30 ticks. When the term expires, the citizen returns to their previous patch if vacant or to another randomly chosen vacant patch. They keep their original hardship and risk aversion.
+Officers call `arrest-active-citizen` after trying to move. If an officer sees any active citizens within vision, they choose one at random to arrest. The officer stays on their current patch. The arrested citizen becomes quiet and is hidden from the grid.
+
+NetLogo’s built-in `hidden?` flag represents detention in this model. `hide-turtle` sets it to `true` at arrest, and `show-turtle` clears it at release. The model checks the flag when each agent’s turn comes. A citizen arrested earlier in the same tick skips their turn. Other agents can use a jailed citizen’s patch.
+
+Each jail term is drawn uniformly from 1 through **maximum-jail-term**, which defaults to 30 ticks. A released citizen returns to their former patch if it is vacant, or to a randomly chosen vacant patch. They keep their original hardship and risk aversion.
 
 ## What to look for
 
-The **Citizen states** plot counts free quiet, active, and jailed citizens. Keep the numeric inputs fixed and compare activity with O_m3. In Model I, Epstein marks the start of an outburst when the active count rises above 50 and its end when the count falls below 50.
+The **Citizen states** plot counts quiet citizens who are free, active citizens, and jailed citizens. Hold the numeric inputs fixed and compare the activity with O_m3. In Epstein’s Model I, an outburst begins when the active count rises above 50 and ends when it falls below 50.
 
-In this course version, officers stay on their own patch during arrest and the risk estimate uses the continuous ratio. The published experiments require their own run settings.</info>
+Use Epstein’s Table 2 for published run settings. This course model uses the rounded-down risk rule from the older NetLogo implementation.]]></info>
   <turtleShapes>
     <shape name="default" rotatable="true" editableColorIndex="0">
       <polygon color="-1920102913" filled="true" marked="true">

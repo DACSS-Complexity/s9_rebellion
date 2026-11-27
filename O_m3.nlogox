@@ -44,7 +44,7 @@ to update-citizen-state  ; citizen procedure
   set grievance hardship * (1 - legitimacy)
   let officers-seen count police in-radius agent-vision
   let active-nearby 1 + count ((other citizens in-radius agent-vision) with [active?])
-  set perceived-arrest-risk 1 - exp (- risk-sensitivity * officers-seen / active-nearby)
+  set perceived-arrest-risk 1 - exp (- risk-sensitivity * floor (officers-seen / active-nearby))
   set active? (grievance - risk-aversion * perceived-arrest-risk) &gt; activation-threshold
   set color ifelse-value active? [red] [blue]
 end
@@ -104,9 +104,9 @@ Both models call `update-citizen-state` after the citizen's movement step and us
 set active? (grievance - risk-aversion * perceived-arrest-risk) &gt; activation-threshold
 ```
 
-O_m2 uses a fixed positive risk whenever any officer is visible. O_m3 estimates risk as **P = 1 − exp(−k × C / A)**. C is the number of officers in view. A is the number of other active citizens in view plus one for the focal citizen, who is considering becoming active. **risk-sensitivity** sets k and defaults to 2.3. With no officers in view, P is zero.
+O_m2 uses a fixed positive risk whenever any officer is visible. O_m3 estimates risk as **P = 1 − exp(−k × floor(C / A))**. C is the number of officers in view. A is the number of other active citizens in view plus one for the focal citizen, who is considering becoming active. **risk-sensitivity** sets k and defaults to 2.3. With no officers in view, P is zero.
 
-With the same positive officer count, more nearby active citizens lower perceived risk. A citizen who turns red can therefore make other citizens more likely to turn red on their turns. The **% active over time** plot starts at tick 1 and can be compared with O_m2 at fixed legitimacy and threshold. Officers only move at this stage.</info>
+The ratio C / A is rounded down before computing risk. Extra nearby active citizens can lower risk when the rounded ratio falls. Risk is zero when C is smaller than A. A citizen who turns red can therefore make other citizens more likely to turn red on their turns. The **% active over time** plot starts at tick 1 and can be compared with O_m2 at fixed legitimacy and threshold. Officers only move at this stage.</info>
   <turtleShapes>
     <shape name="default" rotatable="true" editableColorIndex="0">
       <polygon color="-1920102913" filled="true" marked="true">

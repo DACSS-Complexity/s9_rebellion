@@ -28,7 +28,7 @@ end
 to go
   if not any? turtles [ stop ]
   ask turtles [ move-randomly ]
-  update-patch-colors
+  update-patch-colors  ; visual aid - will be dropped later
   tick
 end
 

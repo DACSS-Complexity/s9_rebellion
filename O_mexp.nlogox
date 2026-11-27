@@ -3,38 +3,39 @@
   <code>breed [citizens citizen]
 breed [police officer]
 
-globals [agent-vision]
+globals [agent-vision effective-legitimacy arrests-this-tick]
 
 citizens-own [hardship grievance risk-aversion perceived-arrest-risk active? release-tick]
-turtles-own [moved-this-tick?]
+patches-own [movement-neighborhood]
 
 to setup
-  check-jail-term
+  check-inputs
   clear-all
   set agent-vision vision_in_patches
+  set effective-legitimacy legitimacy
+  ask patches [ set movement-neighborhood patches in-radius agent-vision ]
 
   let citizen-count round (0.7 * count patches)
   ask n-of citizen-count patches [
     sprout-citizens 1 [
       set hardship random-float 1
       set risk-aversion random-float 1
-      set grievance hardship * (1 - legitimacy)
+      set grievance hardship * (1 - effective-legitimacy)
       set active? false
       set color blue
     ]
   ]
-  let police-count round (0.04 * count patches)
+  let police-count round (police-density / 100 * count patches)
   ask n-of police-count patches with [not any? turtles-here] [
     sprout-police 1 
   ]
-  update-all-agents
   update-police-colors
   reset-ticks
 end
 
 to go
   if not any? turtles [ stop ]
-  check-jail-term
+  set arrests-this-tick 0
   ask citizens with [hidden? and release-tick &lt;= ticks] [ release-citizen ]
   ask turtles with [not hidden?] [
     if not hidden? [
@@ -44,31 +45,34 @@ to go
         [ arrest-active-citizen ]
     ]
   ]
+  set effective-legitimacy max (list 0 (legitimacy - legitimacy-feedback * jailed-share))
   tick
 end
 
 to update-citizen-state  ; citizen procedure
-  set grievance hardship * (1 - legitimacy)
+  set grievance hardship * (1 - effective-legitimacy)
   let officers-seen count police in-radius agent-vision
   let active-nearby 1 + count ((other citizens in-radius agent-vision) with [active?])
-  set perceived-arrest-risk 1 - exp (- risk-sensitivity * officers-seen / active-nearby)
+  set perceived-arrest-risk 1 - exp (- risk-sensitivity * floor (officers-seen / active-nearby))
   set active? (grievance - risk-aversion * perceived-arrest-risk) &gt; activation-threshold
   set color ifelse-value active? [red] [blue]
 end
 
 to move-randomly
-  let destinations (patches in-radius agent-vision) with [not any? turtles-here with [not hidden?]]
-  set moved-this-tick? any? destinations
-  if moved-this-tick? [ move-to one-of destinations ]
+  move-to-vacancy movement-neighborhood
 end
 
-
-
-to update-all-agents
-  ask turtles [
-    set moved-this-tick? false
+to move-to-vacancy [candidate-patches]
+  ; Try random patches first. The fallback handles crowded neighborhoods.
+  repeat 8 [
+    let target one-of candidate-patches
+    if not any? [turtles-here with [not hidden?]] of target [
+      move-to target
+      stop
+    ]
   ]
-  
+  let target one-of candidate-patches with [not any? turtles-here with [not hidden?]]
+  if target != nobody [ move-to target ]
 end
 
 to update-police-colors
@@ -85,6 +89,7 @@ end
 to arrest-active-citizen  ; officer procedure
   let suspect one-of (citizens in-radius agent-vision) with [active? and not hidden?]
   if suspect != nobody [
+    set arrests-this-tick arrests-this-tick + 1
     ask suspect [
       set active? false
       set color blue
@@ -96,12 +101,23 @@ end
 
 to release-citizen  ; citizen procedure
   if any? other turtles-here with [not hidden?] [
-    move-to one-of patches with [not any? turtles-here with [not hidden?]]
+    move-to-vacancy patches
   ]
   show-turtle
 end
 
-to check-jail-term
+to-report jailed-share
+  if not any? citizens [ report 0 ]
+  report count citizens with [hidden?] / count citizens
+end
+
+to check-inputs
+  if police-density &lt; 1 or police-density &gt; 5 [
+    error "Enter a police density from 1 to 5 percent."
+  ]
+  if legitimacy-feedback &lt; 0 or legitimacy-feedback &gt; 1 [
+    error "Enter legitimacy feedback from 0 to 1."
+  ]
   if maximum-jail-term &lt; 1 or maximum-jail-term != floor maximum-jail-term [
     error "Enter a positive whole number for maximum-jail-term."
   ]
@@ -132,26 +148,18 @@ end</code>
         <update>plotxy ticks count citizens with [hidden?]</update>
       </pen>
     </plot>
+    <input x="13" y="483" height="60" width="192" variable="experiment-seed" type="number" multiline="false">1</input>
+    <input x="13" y="549" height="60" width="192" variable="police-density" type="number" multiline="false">4</input>
+    <input x="13" y="615" height="60" width="192" variable="legitimacy-feedback" type="number" multiline="false">0</input>
+    <monitor x="382" y="430" height="61" width="170" precision="3" fontSize="11" display="Effective legitimacy">effective-legitimacy</monitor>
   </widgets>
-  <info>## O_m4_b · Model I, Run 2 settings
+  <info>## O_mexp · Police density, jail terms, and legitimacy
 
-This version sets the defaults to Epstein (2002), Table 2, Model I Run 2. The world is a 40 × 40 torus. Initial citizen density is 70% and police density is 4%. Both populations move randomly within vision of 7 patch units. Legitimacy is 0.82, activation threshold is 0.10, risk sensitivity is 2.3, and the maximum jail term is 30 ticks.
+The **policy-sweep** BehaviorSpace experiment compares vision 1–10, police density 1–5% of patches, maximum jail terms 15, 30, and 60 ticks, and legitimacy feedback λ from 0 to 1 in 0.2 increments. Each setting uses seeds 1, 2, and 3 and records 180 ticks plus Setup. Citizens occupy 70% of patches at Setup. The activation threshold is 0.10 and risk sensitivity is 2.3. The local police-to-active ratio is rounded down in all runs.
 
-Keep those inputs fixed during Go. Use the **Citizen states** plot to look for outbursts and compare the active and jailed counts.
+The **legitimacy** input is the baseline L₀, set to 0.82 in the experiment. At the end of each tick, effective legitimacy becomes max(0, L₀ − λ × jailed share). Citizens use that value on the next tick. A value of λ = 0 keeps legitimacy fixed. The CSV reports end-of-tick legitimacy, arrests in that tick, and the three citizen counts.
 
-## What changes from O_m3
-
-Citizens still call `update-citizen-state` after moving. They estimate perceived arrest risk from the same local ratio of police to active citizens and use the same activation rule, G − R × P &gt; T.
-
-Officers now call `arrest-active-citizen` after moving. If there are active citizens within vision, each officer selects one at random for arrest. The citizen becomes quiet and is hidden from the grid while jailed. Jailed citizens cannot move, act, or occupy a site for purposes of movement.
-
-The jail term is drawn uniformly from 1 through **maximum-jail-term**, which defaults to 30 ticks. When the term expires, the citizen returns to their previous patch if vacant or to another randomly chosen vacant patch. They keep their original hardship and risk aversion.
-
-## What to look for
-
-The **Citizen states** plot counts free quiet, active, and jailed citizens. Keep the numeric inputs fixed and compare activity with O_m3. In Model I, Epstein marks the start of an outburst when the active count rises above 50 and its end when the count falls below 50.
-
-In this course version, officers stay on their own patch during arrest and the risk estimate uses the continuous ratio. The parameter values match Run 2. The movement, arrest, and release procedures carry over from the course model.</info>
+Choose **policy-sweep** in BehaviorSpace and select Table output. The companion notebook detects episodes above 50 active citizens and distinguishes sustained activity from recurring outbursts.</info>
   <turtleShapes>
     <shape name="default" rotatable="true" editableColorIndex="0">
       <polygon color="-1920102913" filled="true" marked="true">
@@ -193,4 +201,57 @@ In this course version, officers stay on their own patch during arrest and the r
     </shape>
   </linkShapes>
   <previewCommands>setup repeat 75 [ go ]</previewCommands>
+  <experiments>
+    <experiment name="policy-sweep" repetitions="1" sequentialRunOrder="true" runMetricsEveryStep="true" timeLimit="180">
+      <setup>random-seed experiment-seed
+    setup</setup>
+      <go>go</go>
+      <metrics>
+        <metric>ticks</metric>
+        <metric>count citizens with [active?]</metric>
+        <metric>count citizens with [not active? and not hidden?]</metric>
+        <metric>count citizens with [hidden?]</metric>
+        <metric>arrests-this-tick</metric>
+        <metric>jailed-share</metric>
+        <metric>effective-legitimacy</metric>
+      </metrics>
+      <constants>
+        <steppedValueSet variable="vision_in_patches" first="1" step="1" last="10" />
+        <enumeratedValueSet variable="experiment-seed">
+          <value value="1" />
+          <value value="2" />
+          <value value="3" />
+        </enumeratedValueSet>
+        <enumeratedValueSet variable="legitimacy">
+          <value value="0.82" />
+        </enumeratedValueSet>
+        <enumeratedValueSet variable="activation-threshold">
+          <value value="0.1" />
+        </enumeratedValueSet>
+        <enumeratedValueSet variable="risk-sensitivity">
+          <value value="2.3" />
+        </enumeratedValueSet>
+        <enumeratedValueSet variable="police-density">
+          <value value="1" />
+          <value value="2" />
+          <value value="3" />
+          <value value="4" />
+          <value value="5" />
+        </enumeratedValueSet>
+        <enumeratedValueSet variable="maximum-jail-term">
+          <value value="15" />
+          <value value="30" />
+          <value value="60" />
+        </enumeratedValueSet>
+        <enumeratedValueSet variable="legitimacy-feedback">
+          <value value="0" />
+          <value value="0.2" />
+          <value value="0.4" />
+          <value value="0.6" />
+          <value value="0.8" />
+          <value value="1" />
+        </enumeratedValueSet>
+      </constants>
+    </experiment>
+  </experiments>
 </model>

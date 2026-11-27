@@ -89,7 +89,9 @@ Citizens and officers share the same random movement rule.
 
 ## Citizen decision rule
 
-After the movement step, Go calls `update-citizen-state` for each citizen. In O_m1, the activation line is:
+During Go, agents take turns in random order inside `ask turtles`. Each agent tries to move. The line `if breed = citizens [ update-citizen-state ]` lets each citizen decide immediately after their own movement step, before the next agent takes a turn. This order matters starting in O_m2, because a citizen estimates arrest risk from the officers in view at that moment.
+
+The activation line in O_m1 is shown below.
 
 ```netlogo
 set active? grievance &gt; activation-threshold
